@@ -29,15 +29,10 @@ $result=@()
 
 
 # Get IP from Application Log with ID 1035. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторяются $fails раз и больше.
-# Write-Host "Getting AppLog"
 $AppLogIP = ((Get-WinEvent -FilterHashtable @{logname='Application';id=1035}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value |Group-Object -NoElement
-# Write-Host "AppLogIP" ; $AppLogIP | Sort-Object -Property count -Descending
-
 
 # Get IP from Security Log with ID 4625. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторятся $fails раз и больше.
-# Write-Host "Getting SecLog"
 $SecLogIP = ((Get-WinEvent -FilterHashtable @{logname='Security';id=4625;StartTime=$StartTime}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value | Group-Object -NoElement 
-# Write-Host "SecLogIP"; $SecLogIP | Sort-Object -Property count -Descending
 
 $AppLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\AppLogIP.txt
 $SecLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\SecLogIP.txt
@@ -49,7 +44,6 @@ $SecLogIP | foreach {if ($_.count -ge $fails) {$result+= $_.name }}
 
 # Write-Host "Result" ; $result | Sort-Object
 
-
 # Connect to mikrotik by SSH. Подключаемся к микротику по SSH
 
 $SSHSession = New-SSHSession -ComputerName $ipaddr -Credential $Cred -Verbose
@@ -59,12 +53,8 @@ if ($($sshSession.Connected) -eq $true) {
     $SSH = $SSHSession | New-SSHShellStream
 
     # Adding IP addresses to blacklist.
-#    Write-Host "Adding IP addresses to blacklist"
     $result | foreach {
         try {
-#            Write-Host "Adding IP: " $_
-            #Invoke-SSHStreamShellCommand -ShellStream $SSH -Verbose -ErrorAction Continue -WarningAction Continue -InformationAction Continue -Debug -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
-            #Invoke-SSHCommandStream -SSHSession $SSHSession -Debug -Verbose -ErrorAction Continue -InformationAction Continue -WarningAction Continue -TimeOut 5  -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
             Invoke-SSHCommandStream -SSHSession $SSHSession -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
             }
         catch{
