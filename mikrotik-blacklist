@@ -1,5 +1,4 @@
 ####################
-#
 # Скрипт для добавления IP адресов брутфорсеров в черные списки на микротик с опубликованного в интернет Exchange сервера.
 # IP адреса извлекаются из журналов событий неудачных попыток аутентификации по MSA (SMTP AUTH) (Application Log with ID 1035) и OWA (Security Log with ID 4625).
 # 
@@ -27,25 +26,23 @@ $cred = New-Object System.Management.Automation.PsCredential $user, $passwd
 
 $result=@()
 
-
 # Get IP from Application Log with ID 1035. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторяются $fails раз и больше.
 $AppLogIP = ((Get-WinEvent -FilterHashtable @{logname='Application';id=1035}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value |Group-Object -NoElement
 
 # Get IP from Security Log with ID 4625. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторятся $fails раз и больше.
 $SecLogIP = ((Get-WinEvent -FilterHashtable @{logname='Security';id=4625;StartTime=$StartTime}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value | Group-Object -NoElement 
 
-$AppLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\AppLogIP.txt
-$SecLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\SecLogIP.txt
+# Для проверки можно добавить выбранные IP адреса в файл.
+#$AppLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\AppLogIP.txt
+#$SecLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\SecLogIP.txt
 
 # Adding failed authanticated IP addresses to array. Добавляем в массив IP, которые повторяются $fails раз и больше. 
-
 $AppLogIP | ForEach-Object {if ($_.count -ge $fails) {$result+= $_.name }}
 $SecLogIP | ForEach-Object {if ($_.count -ge $fails) {$result+= $_.name }}
 
 # Write-Host "Result" ; $result | Sort-Object
 
 # Connect to mikrotik by SSH. Подключаемся к микротику по SSH
-
 $SSHSession = New-SSHSession -ComputerName $ipaddr -Credential $Cred -Verbose
 
 if ($($sshSession.Connected) -eq $true) {
