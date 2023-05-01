@@ -1,0 +1,75 @@
+####################
+#
+# Скрипт для добавления IP адресов брутфорсеров в черные списки на микротик с опубликованного в интернет Exchange сервера.
+# IP адреса извлекаются из журналов событий неудачных попыток аутентификации по MSA (SMTP AUTH) (Application Log with ID 1035) и OWA (Security Log with ID 4625).
+# 
+# Скрипт требует прав администратора для доступа к журналам Security Log.
+#
+# В первый раз необходимо установить модуль Posh-SSH. Требуются права администратора. 
+# Install-Module -Name Posh-SSH 
+#
+# Скрипт необходимо добавить в планировщик задач и выполнять каждые 10 минут.
+#
+# Аутентификация на mikrotik происходит с помощью заранее подготовленного файла pscred-robot.txt с зашифорованным паролем.
+######################
+
+Import-Module posh-ssh
+
+$fails = 3                                     # Минимальное количество неудачных попыток аутентификации.
+$StartTime = (Get-Date).AddHours(-12)          # Период, за который собираются логи.
+
+$ipaddr = "172.16.2.1"                         # mikrotik IP
+$user = "robot"                                # mikrotik login
+$pscred = "C:\Scripts\blacklist\pscred-robot.txt" 
+$pwd = get-content $pscred | convertto-securestring -Key(1..24) 
+$pwd.Makereadonly()
+$cred = New-Object System.Management.Automation.PsCredential $user, $pwd
+
+$result=@()
+
+
+# Get IP from Application Log with ID 1035. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторяются $fails раз и больше.
+# Write-Host "Getting AppLog"
+$AppLogIP = ((Get-WinEvent -FilterHashtable @{logname='Application';id=1035}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value |Group-Object -NoElement
+# Write-Host "AppLogIP" ; $AppLogIP | Sort-Object -Property count -Descending
+
+
+# Get IP from Security Log with ID 4625. Получаем IP адреса из журналов событий и группируем их, чтобы позже выбрать те, которые повторятся $fails раз и больше.
+# Write-Host "Getting SecLog"
+$SecLogIP = ((Get-WinEvent -FilterHashtable @{logname='Security';id=4625;StartTime=$StartTime}).message | Select-String -Pattern "\d{1,3}(\.\d{1,3}){3}").matches.Value | Group-Object -NoElement 
+# Write-Host "SecLogIP"; $SecLogIP | Sort-Object -Property count -Descending
+
+$AppLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\AppLogIP.txt
+$SecLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\SecLogIP.txt
+
+# Adding failed authanticated IP addresses to array. Добавляем в массив IP, которые повторяются $fails раз и больше. 
+
+$AppLogIP | foreach {if ($_.count -ge $fails) {$result+= $_.name }}
+$SecLogIP | foreach {if ($_.count -ge $fails) {$result+= $_.name }}
+
+# Write-Host "Result" ; $result | Sort-Object
+
+
+# Connect to mikrotik by SSH. Подключаемся к микротику по SSH
+
+$SSHSession = New-SSHSession -ComputerName $ipaddr -Credential $Cred -Verbose
+
+if ($($sshSession.Connected) -eq $true) {
+    Write-Host "SSH session opened" -ForegroundColor Green
+    $SSH = $SSHSession | New-SSHShellStream
+
+    # Adding IP addresses to blacklist.
+#    Write-Host "Adding IP addresses to blacklist"
+    $result | foreach {
+        try {
+#            Write-Host "Adding IP: " $_
+            #Invoke-SSHStreamShellCommand -ShellStream $SSH -Verbose -ErrorAction Continue -WarningAction Continue -InformationAction Continue -Debug -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
+            #Invoke-SSHCommandStream -SSHSession $SSHSession -Debug -Verbose -ErrorAction Continue -InformationAction Continue -WarningAction Continue -TimeOut 5  -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
+            Invoke-SSHCommandStream -SSHSession $SSHSession -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
+            }
+        catch{
+        throw $_
+        }
+    }
+}
+$SSHSession|Remove-SSHSession |Out-Null
