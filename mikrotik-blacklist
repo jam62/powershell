@@ -39,8 +39,8 @@ $SecLogIP.name | Sort-Object | Set-Content -Path c:\Scripts\blacklist\SecLogIP.t
 
 # Adding failed authanticated IP addresses to array. Добавляем в массив IP, которые повторяются $fails раз и больше. 
 
-$AppLogIP | foreach {if ($_.count -ge $fails) {$result+= $_.name }}
-$SecLogIP | foreach {if ($_.count -ge $fails) {$result+= $_.name }}
+$AppLogIP | ForEach-Object {if ($_.count -ge $fails) {$result+= $_.name }}
+$SecLogIP | ForEach-Object {if ($_.count -ge $fails) {$result+= $_.name }}
 
 # Write-Host "Result" ; $result | Sort-Object
 
@@ -53,7 +53,7 @@ if ($($sshSession.Connected) -eq $true) {
     $SSH = $SSHSession | New-SSHShellStream
 
     # Adding IP addresses to blacklist.
-    $result | foreach {
+    $result | ForEach-Object {
         try {
             Invoke-SSHCommandStream -SSHSession $SSHSession -Command "/ip firewall address-list add address=$_ list=blacklist comment=MBX1"
             }
