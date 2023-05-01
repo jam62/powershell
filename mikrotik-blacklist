@@ -21,9 +21,9 @@ $StartTime = (Get-Date).AddHours(-12)          # Период, за которы
 $ipaddr = "172.16.2.1"                         # mikrotik IP
 $user = "robot"                                # mikrotik login
 $pscred = "C:\Scripts\blacklist\pscred-robot.txt" 
-$pwd = get-content $pscred | convertto-securestring -Key(1..24) 
-$pwd.Makereadonly()
-$cred = New-Object System.Management.Automation.PsCredential $user, $pwd
+$passwd = get-content $pscred | convertto-securestring -Key(1..24) 
+$passwd.Makereadonly()
+$cred = New-Object System.Management.Automation.PsCredential $user, $passwd
 
 $result=@()
 
